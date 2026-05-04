@@ -226,6 +226,11 @@ def main():
     map_p = sub.add_parser("map", help="Map v1 activity ID to v2 UUID")
     map_p.add_argument("v1_id", help="Legacy v1 activity ID (integer)")
 
+    export_p = sub.add_parser("export", help="Export all data to JSON file")
+    export_p.add_argument("--start", help="Start date (YYYY-MM-DD or ISO)")
+    export_p.add_argument("--end", help="End date (YYYY-MM-DD or ISO)")
+    export_p.add_argument("--output", "-o", default="whoop_export.json", help="Output file (default: whoop_export.json)")
+
     args = parser.parse_args()
     client = WhoopClient.from_stored_tokens()
 
@@ -249,6 +254,26 @@ def main():
             "cycle-recovery": client.get_cycle_recovery,
         }
         result = fn[args.type](args.id)
+    elif args.command == "export":
+        start = _parse_date(args.start)
+        end = _parse_date(args.end)
+        export = {
+            "exported_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "profile": client.get_profile(),
+            "body": client.get_body_measurement(),
+            "cycles": client.get_all_cycles(start, end),
+            "recovery": client.get_all_recoveries(start, end),
+            "sleep": client.get_all_sleeps(start, end),
+            "workouts": client.get_all_workouts(start, end),
+        }
+        with open(args.output, "w") as f:
+            json.dump(export, f, indent=2, default=str)
+        print(f"Exported to {args.output}")
+        print(f"  Cycles:    {len(export['cycles'])}")
+        print(f"  Recovery:  {len(export['recovery'])}")
+        print(f"  Sleep:     {len(export['sleep'])}")
+        print(f"  Workouts:  {len(export['workouts'])}")
+        return
     elif args.command in ("cycles", "sleep", "recovery", "workouts"):
         start = _parse_date(args.start)
         end = _parse_date(args.end)
